@@ -43,6 +43,10 @@
 
 本应用不使用 Android `VpnService`，也不会创建 VPN 网络接口。代理出站连接遵循 Android 当前默认路由，因此可以在另一款 VPN 应用已连接时继续运行，并通过该 VPN 出站。
 
+## 锁屏运行
+
+只要任一代理监听器正在运行，前台服务就会持有部分唤醒锁，使代理在熄屏后仍能继续处理连接。在 Android 6.0 及更高版本中，请在应用的 **Background Operation** 区域点击 **Allow**，允许应用忽略电池优化；否则设备长时间闲置进入 Doze 后，系统可能暂停网络访问。部分厂商设备还需要在系统设置中开启“不受限制”的电池使用、允许后台活动或允许自启动。
+
 ## 构建与发布
 
 推送到 `master` 后，GitHub Actions 会运行测试，并把 Debug/Release APK 上传为临时 Artifact。推送与 `versionName` 完全一致的 `v*` 标签后，工作流会创建或更新 GitHub Release，并附加已签名的 Release APK。

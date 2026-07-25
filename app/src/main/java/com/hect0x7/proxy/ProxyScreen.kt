@@ -51,7 +51,9 @@ fun ProxyScreen(
     settings: ProxySettings,
     runtime: RuntimeSnapshot,
     addresses: List<String>,
+    batteryOptimizationIgnored: Boolean,
     onSettingsChanged: (ProxySettings) -> Unit,
+    onRequestBatteryOptimizationExemption: () -> Unit,
 ) {
     var editing by remember { mutableStateOf<ProxyKind?>(null) }
 
@@ -87,6 +89,12 @@ fun ProxyScreen(
                     DetailRow(if (index == 0) "Local network" else "", address, monospace = true)
                 }
 
+                SectionTitle("Background Operation")
+                BatteryOptimizationRow(
+                    ignored = batteryOptimizationIgnored,
+                    onRequestExemption = onRequestBatteryOptimizationExemption,
+                )
+
                 SectionTitle("Traffic")
                 Row(modifier = Modifier.fillMaxWidth()) {
                     Metric("Download", formatBytes(runtime.bytesReceived), Modifier.weight(1f))
@@ -117,6 +125,28 @@ fun ProxyScreen(
                 onSettingsChanged(if (kind == ProxyKind.HTTP) settings.copy(httpPort = port) else settings.copy(socksPort = port))
             },
         )
+    }
+}
+
+@Composable
+private fun BatteryOptimizationRow(
+    ignored: Boolean,
+    onRequestExemption: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp).padding(horizontal = 20.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text("Battery optimization", style = MaterialTheme.typography.bodyLarge)
+            Spacer(Modifier.height(3.dp))
+            Text(
+                text = if (ignored) "Unrestricted for reliable lock-screen proxying" else "Allow for reliable lock-screen proxying",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 12.sp,
+            )
+        }
+        if (!ignored) TextButton(onClick = onRequestExemption) { Text("Allow") }
     }
 }
 

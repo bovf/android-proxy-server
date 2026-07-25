@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.IBinder
+import android.os.PowerManager
 import androidx.core.content.ContextCompat
 import com.hect0x7.proxy.core.ProxyConfig
 import com.hect0x7.proxy.core.ProxyServerController
@@ -32,6 +33,7 @@ class ProxyService : Service() {
     private val settingsRequests = Channel<SettingsRequest>(Channel.CONFLATED)
     private val requestLock = Any()
     private var latestStartId = 0
+    private var wakeLock: PowerManager.WakeLock? = null
     private var sessionLog = emptyList<String>()
 
     override fun onCreate() {
@@ -73,6 +75,7 @@ class ProxyService : Service() {
         settingsRequests.close()
         scope.cancel()
         runBlocking(Dispatchers.IO) { controller.stop() }
+        releaseWakeLock()
         mutableRuntime.value = mutableRuntime.value.copy(
             running = false,
             httpRunning = false,
@@ -92,6 +95,7 @@ class ProxyService : Service() {
                 controller.stop()
                 appendLog("Proxy listeners stopped")
             }
+            releaseWakeLock()
             val stopped = synchronized(requestLock) {
                 request.startId == latestStartId && stopSelfResult(request.startId)
             }
@@ -107,6 +111,7 @@ class ProxyService : Service() {
         )
         runCatching { controller.reconfigure(config) }
             .onSuccess {
+                acquireWakeLock()
                 val listeners = buildList {
                     if (config.httpEnabled) add("HTTP:${config.httpPort}")
                     if (config.socksEnabled) add("SOCKS:${config.socksPort}")
@@ -115,7 +120,23 @@ class ProxyService : Service() {
                 getSystemService(NotificationManager::class.java)
                     .notify(NOTIFICATION_ID, buildNotification(settings))
             }
-            .onFailure { error -> appendLog("Error: ${error.message ?: error.javaClass.simpleName}") }
+            .onFailure { error ->
+                releaseWakeLock()
+                appendLog("Error: ${error.message ?: error.javaClass.simpleName}")
+            }
+    }
+
+    private fun acquireWakeLock() {
+        val lock = wakeLock ?: getSystemService(PowerManager::class.java)
+            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "$packageName:proxy-service")
+            .apply { setReferenceCounted(false) }
+            .also { wakeLock = it }
+        if (!lock.isHeld) lock.acquire()
+    }
+
+    private fun releaseWakeLock() {
+        wakeLock?.takeIf { it.isHeld }?.release()
+        wakeLock = null
     }
 
     private fun appendLog(message: String) {

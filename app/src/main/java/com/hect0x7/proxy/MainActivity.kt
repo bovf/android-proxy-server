@@ -1,9 +1,13 @@
 package com.hect0x7.proxy
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.collectAsState
@@ -15,12 +19,14 @@ class MainActivity : ComponentActivity() {
     private lateinit var preferences: ProxyPreferences
     private var settings by mutableStateOf(ProxySettings())
     private var addresses by mutableStateOf(emptyList<String>())
+    private var batteryOptimizationIgnored by mutableStateOf(true)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         preferences = ProxyPreferences(this)
         settings = preferences.read()
         addresses = localIpv4Addresses()
+        refreshBatteryOptimizationState()
         requestRuntimePermissions()
 
         if (settings.httpEnabled || settings.socksEnabled) {
@@ -34,7 +40,9 @@ class MainActivity : ComponentActivity() {
                     settings = settings,
                     runtime = runtime,
                     addresses = addresses,
+                    batteryOptimizationIgnored = batteryOptimizationIgnored,
                     onSettingsChanged = ::updateSettings,
+                    onRequestBatteryOptimizationExemption = ::requestBatteryOptimizationExemption,
                 )
             }
         }
@@ -43,6 +51,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         addresses = localIpv4Addresses()
+        refreshBatteryOptimizationState()
     }
 
     private fun updateSettings(updated: ProxySettings) {
@@ -50,6 +59,21 @@ class MainActivity : ComponentActivity() {
         settings = updated
         preferences.write(updated)
         ProxyService.applySettings(this)
+    }
+
+    private fun refreshBatteryOptimizationState() {
+        batteryOptimizationIgnored = Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
+            getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
+    }
+
+    private fun requestBatteryOptimizationExemption() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || batteryOptimizationIgnored) return
+        val request = Intent(
+            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+            Uri.parse("package:$packageName"),
+        )
+        runCatching { startActivity(request) }
+            .onFailure { startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
     }
 
     private fun requestRuntimePermissions() {

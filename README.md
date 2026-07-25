@@ -43,6 +43,10 @@ Read the [Privacy Policy](PRIVACY.md) and [Security Policy](SECURITY.md) for det
 
 This app does not use Android `VpnService` and does not create a VPN interface. Outbound proxy connections follow Android's current default route, so the server can remain active while another VPN app is connected and send traffic through that VPN.
 
+## Lock-screen operation
+
+While either proxy listener is running, the foreground service holds a partial wake lock so the proxy can continue processing connections after the screen turns off. On Android 6.0 and later, open **Background Operation** in the app and tap **Allow** to exempt the app from battery optimization; otherwise Doze may suspend network access during extended idle periods. Some device vendors also require enabling unrestricted battery usage, background activity, or autostart in system settings.
+
 ## Build And Release
 
 Pushing to `master` runs tests and uploads Debug/Release APKs as temporary GitHub Actions artifacts. Pushing a `v*` tag that exactly matches `versionName` creates or updates a GitHub Release and attaches the signed Release APK.
