@@ -18,8 +18,11 @@ data class RuntimeSnapshot(
     val socksRunning: Boolean = false,
     val bytesReceived: Long = 0,
     val bytesSent: Long = 0,
+    val receiveBytesPerSecond: Long = 0,
+    val sendBytesPerSecond: Long = 0,
     val activeConnections: Int = 0,
     val totalConnections: Long = 0,
+    val lastError: String? = null,
     val log: List<String> = emptyList(),
 )
 

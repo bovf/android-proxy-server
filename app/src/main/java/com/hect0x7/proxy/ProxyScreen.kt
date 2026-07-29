@@ -60,6 +60,7 @@ fun ProxyScreen(
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize()) {
             TopBar(runtime.running)
+            ProxyStatusBar(settings, runtime)
             Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                 ProxyToggleRow(
                     title = ProxyKind.HTTP.title,
@@ -80,8 +81,14 @@ fun ProxyScreen(
                 )
 
                 SectionTitle("Proxy Details")
-                DetailRow("HTTP", if (settings.httpEnabled) "0.0.0.0:${settings.httpPort}" else "Stopped")
-                DetailRow("SOCKS", if (settings.socksEnabled) "0.0.0.0:${settings.socksPort}" else "Stopped")
+                DetailRow(
+                    "HTTP",
+                    listenerStatus(settings.httpEnabled, runtime.httpRunning, settings.httpPort, runtime.lastError),
+                )
+                DetailRow(
+                    "SOCKS",
+                    listenerStatus(settings.socksEnabled, runtime.socksRunning, settings.socksPort, runtime.lastError),
+                )
 
                 SectionTitle("IP Addresses")
                 if (addresses.isEmpty()) DetailRow("Local network", "No reachable IPv4 address")
@@ -125,6 +132,59 @@ fun ProxyScreen(
                 onSettingsChanged(if (kind == ProxyKind.HTTP) settings.copy(httpPort = port) else settings.copy(socksPort = port))
             },
         )
+    }
+}
+
+@Composable
+private fun ProxyStatusBar(settings: ProxySettings, runtime: RuntimeSnapshot) {
+    val requested = settings.httpEnabled || settings.socksEnabled
+    val healthy = runtime.running && (runtime.httpRunning || runtime.socksRunning)
+    val failed = requested && runtime.lastError != null
+    val statusColor = when {
+        healthy -> Color(0xFF14805E)
+        failed -> MaterialTheme.colorScheme.error
+        requested -> Color(0xFF9A6700)
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val status = when {
+        healthy -> "VERIFIED RUNNING"
+        failed -> "START FAILED"
+        requested -> "VERIFYING LISTENERS"
+        else -> "STOPPED"
+    }
+    val details = when {
+        healthy -> buildList {
+            if (runtime.httpRunning) add("HTTP")
+            if (runtime.socksRunning) add("SOCKS")
+        }.joinToString(" + ") + "  •  ${runtime.activeConnections} active"
+        failed -> runtime.lastError ?: "Listener verification failed"
+        requested -> "Binding ports and checking local acceptance"
+        else -> "Enable HTTP or SOCKS to start"
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth().background(statusColor.copy(alpha = 0.12f))
+            .padding(horizontal = 20.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier.size(9.dp).background(statusColor, MaterialTheme.shapes.extraSmall),
+        )
+        Spacer(Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(status, color = statusColor, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text(
+                details,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            Text("↓ ${formatRate(runtime.receiveBytesPerSecond)}", fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+            Text("↑ ${formatRate(runtime.sendBytesPerSecond)}", fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+        }
     }
 }
 
@@ -354,4 +414,13 @@ private fun formatBytes(bytes: Long): String {
         unit++
     }
     return if (value >= 100) "%.0f %s".format(value, units[unit]) else "%.1f %s".format(value, units[unit])
+}
+
+private fun formatRate(bytesPerSecond: Long): String = "${formatBytes(bytesPerSecond)}/s"
+
+private fun listenerStatus(enabled: Boolean, running: Boolean, port: Int, lastError: String?): String = when {
+    running -> "0.0.0.0:$port"
+    !enabled -> "Stopped"
+    lastError != null -> "Unavailable — see Session Log"
+    else -> "Starting…"
 }

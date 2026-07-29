@@ -16,7 +16,9 @@ An independent, minimal, open-source, and ad-free HTTP/SOCKS5 proxy server for A
 - Rejects connections originating from the phone itself to prevent recursive proxy loops
 - Uses Android's current default network, including another active VPN
 - Runs as a user-controlled foreground service
-- Displays local connection counts, traffic statistics, and in-memory session logs
+- Runs a local listener self-test before reporting startup success
+- Displays a persistent health bar with live transfer rates and active connections
+- Displays cumulative traffic statistics and in-memory session logs
 
 ## Quick Start
 

@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.IBinder
 import android.os.PowerManager
+import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import com.hect0x7.proxy.core.ProxyConfig
 import com.hect0x7.proxy.core.ProxyServerController
@@ -19,11 +20,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
@@ -31,6 +34,7 @@ class ProxyService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val controller = ProxyServerController()
     private val settingsRequests = Channel<SettingsRequest>(Channel.CONFLATED)
+    private val transferRate = MutableStateFlow(TransferRate())
     private val requestLock = Any()
     private var latestStartId = 0
     private var wakeLock: PowerManager.WakeLock? = null
@@ -40,21 +44,47 @@ class ProxyService : Service() {
         super.onCreate()
         createNotificationChannel()
         scope.launch {
-            combine(controller.stats, controller.config) { stats, config -> stats to config }
-                .collect { (stats, config) ->
+            combine(controller.stats, controller.config, transferRate) { stats, config, rate ->
+                Triple(stats, config, rate)
+            }.collect { (stats, config, rate) ->
                     mutableRuntime.value = RuntimeSnapshot(
                         running = stats.running,
                         httpRunning = stats.running && config?.httpEnabled == true,
                         socksRunning = stats.running && config?.socksEnabled == true,
                         bytesReceived = stats.receivedBytes,
                         bytesSent = stats.sentBytes,
+                        receiveBytesPerSecond = rate.received,
+                        sendBytesPerSecond = rate.sent,
                         activeConnections = stats.activeConnections,
                         totalConnections = stats.totalConnections,
+                        lastError = stats.lastError,
                         log = sessionLog,
                     )
                     stats.lastError?.takeIf { error -> sessionLog.lastOrNull()?.endsWith(error) != true }
                         ?.let { appendLog("Error: $it") }
+            }
+        }
+        scope.launch {
+            var previousReceived = 0L
+            var previousSent = 0L
+            var previousSampleTime = SystemClock.elapsedRealtime()
+            while (isActive) {
+                delay(TRANSFER_RATE_INTERVAL_MILLIS)
+                val stats = controller.stats.value
+                val sampleTime = SystemClock.elapsedRealtime()
+                val elapsedMillis = (sampleTime - previousSampleTime).coerceAtLeast(1)
+                transferRate.value = if (stats.running) {
+                    TransferRate(
+                        received = ratePerSecond(stats.receivedBytes - previousReceived, elapsedMillis),
+                        sent = ratePerSecond(stats.sentBytes - previousSent, elapsedMillis),
+                    )
+                } else {
+                    TransferRate()
                 }
+                previousReceived = stats.receivedBytes
+                previousSent = stats.sentBytes
+                previousSampleTime = sampleTime
+            }
         }
         scope.launch {
             for (request in settingsRequests) reconcile(request)
@@ -80,6 +110,8 @@ class ProxyService : Service() {
             running = false,
             httpRunning = false,
             socksRunning = false,
+            receiveBytesPerSecond = 0,
+            sendBytesPerSecond = 0,
             activeConnections = 0,
             log = sessionLog,
         )
@@ -93,7 +125,7 @@ class ProxyService : Service() {
         if (!settings.httpEnabled && !settings.socksEnabled) {
             if (controller.config.value != null) {
                 controller.stop()
-                appendLog("Proxy listeners stopped")
+                appendLog("Stopped: HTTP and SOCKS are disabled")
             }
             releaseWakeLock()
             val stopped = synchronized(requestLock) {
@@ -116,7 +148,7 @@ class ProxyService : Service() {
                     if (config.httpEnabled) add("HTTP:${config.httpPort}")
                     if (config.socksEnabled) add("SOCKS:${config.socksPort}")
                 }.joinToString("  ")
-                appendLog("Listening on $listeners")
+                appendLog("Verified listening on $listeners")
                 getSystemService(NotificationManager::class.java)
                     .notify(NOTIFICATION_ID, buildNotification(settings))
             }
@@ -138,6 +170,9 @@ class ProxyService : Service() {
         wakeLock?.takeIf { it.isHeld }?.release()
         wakeLock = null
     }
+
+    private fun ratePerSecond(byteDelta: Long, elapsedMillis: Long): Long =
+        byteDelta.coerceAtLeast(0) * 1_000L / elapsedMillis
 
     private fun appendLog(message: String) {
         val line = "${LocalTime.now().format(TIME_FORMAT)}  $message"
@@ -184,6 +219,7 @@ class ProxyService : Service() {
         private const val CHANNEL_ID = "proxy_service"
         private const val NOTIFICATION_ID = 71
         private const val MAX_LOG_LINES = 40
+        private const val TRANSFER_RATE_INTERVAL_MILLIS = 1_000L
         private val TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm:ss")
         private val mutableRuntime = MutableStateFlow(RuntimeSnapshot())
         val runtime: StateFlow<RuntimeSnapshot> = mutableRuntime.asStateFlow()
@@ -197,4 +233,9 @@ class ProxyService : Service() {
 private data class SettingsRequest(
     val startId: Int,
     val settings: ProxySettings,
+)
+
+private data class TransferRate(
+    val received: Long = 0,
+    val sent: Long = 0,
 )
