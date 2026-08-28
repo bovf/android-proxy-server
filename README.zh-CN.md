@@ -6,6 +6,12 @@
 
 <img src="art/app-icon.png" width="160" alt="Android Proxy Server 图标">
 
+## 截图
+
+| 应用 |
+|:---:|
+| <img src="art/app-screenshot.jpg" width="180" alt="Android Proxy Server 同时运行 HTTP 和 SOCKS5 代理"> |
+
 ## 功能
 
 - HTTP 代理，默认端口 `8080`

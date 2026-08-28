@@ -6,6 +6,12 @@ An independent, minimal, open-source, and ad-free HTTP/SOCKS5 proxy server for A
 
 <img src="art/app-icon.png" width="160" alt="Android Proxy Server icon">
 
+## Screenshot
+
+| App |
+|:---:|
+| <img src="art/app-screenshot.jpg" width="180" alt="Android Proxy Server running HTTP and SOCKS5 proxies"> |
+
 ## Features
 
 - HTTP proxy on port `8080` by default
