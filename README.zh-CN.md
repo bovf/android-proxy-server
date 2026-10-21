@@ -65,13 +65,13 @@
 
 ```sh
 # 验证通过并提交所有发布修改后：
-git tag -a v1.1.2 -m "Bovf Proxy v1.1.2"
-git push --atomic origin HEAD:refs/heads/master refs/tags/v1.1.2
+git tag -a v1.1.3 -m "Bovf Proxy v1.1.3"
+git push --atomic origin HEAD:refs/heads/master refs/tags/v1.1.3
 ```
 
 标签工作流测试该标签对应的精确提交，使用本分支专用密钥签名，核对固定证书摘要、应用 ID、版本及内嵌源代码提交号，然后为最终 APK 生成 GitHub 来源证明并验证后再发布。Release 包含签名 APK 和 SHA-256 校验文件；绝不覆盖已有附件。来源证明标识工作流和源代码，并不等同于独立复现构建。
 
-签名密钥备份、安全设置 Secrets 和下载验证参见[发布说明](docs/RELEASING.zh-CN.md)；另见 [1.1.2 更新说明](docs/releases/1.1.2.zh-CN.md)。
+签名密钥备份、安全设置 Secrets 和下载验证参见[发布说明](docs/RELEASING.zh-CN.md)；另见 [1.1.3 更新说明](docs/releases/1.1.3.zh-CN.md)。
 
 本地测试与构建（未设置签名环境变量时，Release 不带签名）：
 

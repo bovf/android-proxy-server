@@ -65,13 +65,13 @@ While either proxy listener is running, the foreground service holds a partial w
 
 ```sh
 # After validation and committing all release changes:
-git tag -a v1.1.2 -m "Bovf Proxy v1.1.2"
-git push --atomic origin HEAD:refs/heads/master refs/tags/v1.1.2
+git tag -a v1.1.3 -m "Bovf Proxy v1.1.3"
+git push --atomic origin HEAD:refs/heads/master refs/tags/v1.1.3
 ```
 
 The tag workflow tests the exact tagged commit, signs with the fork's dedicated key, verifies its pinned certificate, application ID, version and embedded source revision, then attests the final APK and verifies its GitHub provenance before publication. The release contains the signed APK and a SHA-256 checksum; existing assets are never overwritten. Provenance identifies the workflow/source, not an independently reproduced build.
 
-See [Release Instructions](docs/RELEASING.md) for signing-key backup, secure secret configuration and download verification, and [1.1.2 release notes](docs/releases/1.1.2.md).
+See [Release Instructions](docs/RELEASING.md) for signing-key backup, secure secret configuration and download verification, and [1.1.3 release notes](docs/releases/1.1.3.md).
 
 Local tests and builds (Release is unsigned without signing environment variables):
 

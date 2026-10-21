@@ -34,8 +34,8 @@ android {
     applicationId = "io.github.bovf.proxy"
     minSdk = libs.versions.minSdk.get().toInt()
     targetSdk = libs.versions.targetSdk.get().toInt()
-    versionCode = 4
-    versionName = "1.1.2"
+    versionCode = 5
+    versionName = "1.1.3"
     manifestPlaceholders["sourceRevision"] = sourceRevision
   }
 

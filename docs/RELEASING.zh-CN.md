@@ -24,14 +24,14 @@ PKCS12 的密钥密码可以与 keystore 密码相同。绝不打印、提交、
 ## 一次最终推送
 
 1. 确认 `origin` 是个人分支、默认分支为 `master`。保留无关本地修改。检查远端分支、标签、Release、Actions 权限及保护规则。
-2. 更新 `app/build.gradle.kts` 中的 `versionName`，递增 `versionCode`。本次为 `1.1.2` 和 `4`。同步中英文文档与 `docs/releases/<版本>.md`。
+2. 更新 `app/build.gradle.kts` 中的 `versionName`，递增 `versionCode`。本次为 `1.1.3` 和 `5`。同步中英文文档与 `docs/releases/<版本>.md`。
 3. 用合成数据运行相关回归、全部单元测试及可行的本地构建。检查完整差异和公开文件是否含秘密或可识别的网络/环境数据。不得削弱自连接防护或禁用检查。
 4. 提交所有预期修改。检查将发送的每个提交，然后在最终发布提交上创建带注释的标签。确认本地及远端不存在同名标签，且两个引用都指向该提交。
 
 ```sh
-git tag -a v1.1.2 -m "Bovf Proxy v1.1.2"
-git rev-parse HEAD 'v1.1.2^{commit}'
-git push --atomic origin HEAD:refs/heads/master refs/tags/v1.1.2
+git tag -a v1.1.3 -m "Bovf Proxy v1.1.3"
+git rev-parse HEAD 'v1.1.3^{commit}'
+git push --atomic origin HEAD:refs/heads/master refs/tags/v1.1.3
 ```
 
 此流程替代旧的“推送分支、等待、再推送标签”。**不得提前测试推送。** 如果保护规则阻止原子推送，应停止，不得改用部分推送、强制推送、重打标签或替换 Release。
@@ -45,12 +45,12 @@ git push --atomic origin HEAD:refs/heads/master refs/tags/v1.1.2
 把两个发布附件下载到干净目录。验证校验文件、APK 签名及证书是否匹配固定摘要。使用 Android 构建工具检查清单中的应用 ID `io.github.bovf.proxy`、versionName/versionCode，以及 `io.github.bovf.proxy.SOURCE_REVISION` 是否等于发布提交。核对标签解引用后的提交和成功的标签 Actions 运行。
 
 ```sh
-sha256sum --check android-proxy-server-1.1.2-release.apk.sha256
-apksigner verify --verbose --print-certs android-proxy-server-1.1.2-release.apk
-gh attestation verify android-proxy-server-1.1.2-release.apk \
+sha256sum --check android-proxy-server-1.1.3-release.apk.sha256
+apksigner verify --verbose --print-certs android-proxy-server-1.1.3-release.apk
+gh attestation verify android-proxy-server-1.1.3-release.apk \
   --repo bovf/android-proxy-server \
   --signer-workflow bovf/android-proxy-server/.github/workflows/android-apk.yml \
-  --source-ref refs/tags/v1.1.2 --source-digest RELEASE_COMMIT --deny-self-hosted-runners
+  --source-ref refs/tags/v1.1.3 --source-digest RELEASE_COMMIT --deny-self-hosted-runners
 ```
 
 把 `RELEASE_COMMIT` 替换为已核对的完整提交哈希。确认来源证明中的 APK 摘要和源代码提交与下载文件及标签一致。这证明 GitHub 工作流与源代码的关系，**不等同于独立复现构建**。单元测试和本地构建不能证明真机、熄屏、热点或 VPN 行为。
