@@ -1,3 +1,4 @@
+// Modified for the bovf fork: strip proxy credentials and bound plain-HTTP response buffering.
 package com.hect0x7.proxy.core.internal.http
 
 import com.hect0x7.proxy.core.internal.RelayHandler
@@ -22,6 +23,7 @@ import io.netty.handler.codec.http.HttpRequest
 import io.netty.handler.codec.http.HttpClientCodec
 import io.netty.handler.codec.http.HttpResponseStatus
 import io.netty.handler.codec.http.HttpVersion
+import io.netty.handler.codec.http.LastHttpContent
 import io.netty.util.ReferenceCountUtil
 
 internal class HttpProxyHandler(
@@ -36,6 +38,10 @@ internal class HttpProxyHandler(
 
   override fun channelRead(ctx: ChannelHandlerContext, message: Any) {
     try {
+      if (message is LastHttpContent &&
+          message.trailingHeaders().contains(HttpHeaderNames.PROXY_AUTHORIZATION)) {
+        message.trailingHeaders().remove(HttpHeaderNames.PROXY_AUTHORIZATION)
+      }
       when (message) {
         is HttpRequest -> handleRequest(ctx, message)
         else -> forwardOrQueue(message)
@@ -74,6 +80,7 @@ internal class HttpProxyHandler(
   private fun prepareForwardRequest(request: HttpRequest, parsed: HttpTarget) {
     request.setUri(parsed.originForm)
     request.headers().remove(PROXY_CONNECTION)
+    request.headers().remove(HttpHeaderNames.PROXY_AUTHORIZATION)
     request.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE)
   }
 
@@ -156,9 +163,8 @@ internal class HttpProxyHandler(
   private fun flushPending(ctx: ChannelHandlerContext, remote: Channel) {
     while (pendingMessages.isNotEmpty()) remote.write(pendingMessages.removeFirst())
     remote.flush()
-    remote.config().isAutoRead = true
+    remote.config().isAutoRead = ctx.channel().isWritable
     ctx.channel().config().isAutoRead = true
-    remote.read()
     ctx.read()
   }
 
@@ -178,11 +184,16 @@ internal class HttpProxyHandler(
     while (pendingMessages.isNotEmpty()) ReferenceCountUtil.release(pendingMessages.removeFirst())
   }
 
+  override fun channelWritabilityChanged(ctx: ChannelHandlerContext) {
+    outbound?.config()?.isAutoRead = ctx.channel().isWritable
+    ctx.fireChannelWritabilityChanged()
+  }
+
   override fun channelInactive(ctx: ChannelHandlerContext) {
     connectFuture?.cancel(false)
     connectFuture = null
     releasePending()
-    outbound?.let(::closeOnFlush)
+    outbound?.close()
     ctx.fireChannelInactive()
   }
 
@@ -191,8 +202,8 @@ internal class HttpProxyHandler(
     connectFuture?.cancel(false)
     connectFuture = null
     releasePending()
-    outbound?.let(::closeOnFlush)
-    closeOnFlush(ctx.channel())
+    outbound?.close()
+    ctx.close()
   }
 
   private companion object {

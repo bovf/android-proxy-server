@@ -8,7 +8,7 @@
 
 ## 部署边界
 
-Android Proxy Server 面向可信局域网使用。HTTP 和 SOCKS5 服务不提供身份验证，启用后会监听本机所有网络接口。
+Bovf Proxy（修改后的 Android Proxy Server 分支）面向可信局域网使用。HTTP 和 SOCKS5 服务不提供身份验证，启用后会监听本机所有网络接口。
 
 - 不要把代理端口直接暴露到公网。
 - 不要在不可信的公共 Wi-Fi 或热点网络中启用代理服务器。
@@ -21,7 +21,9 @@ Android Proxy Server 面向可信局域网使用。HTTP 和 SOCKS5 服务不提�
 
 ## 发布完整性
 
-Release APK 由 GitHub Actions 构建。工作流会在上传产物前验证 APK 签名，并比较 APK 证书 SHA-256 与配置的发布 keystore 是否一致。签名私钥和密码不会存储在仓库中。
+为 bovf 分支修改：标签对应的精确提交测试通过后，才构建 Release APK。发布前，工作流将 APK 签名与私有 keystore 和固定公开证书摘要比较，核对分支应用 ID、版本和源代码提交号，并验证最终 APK 的 GitHub 原生来源证明。APK 附带 SHA-256 校验文件。来源证明不能证明独立复现构建。签名密钥和密码不会存储在仓库中，也不会提供给 PR 任务。
+
+普通 HTTP 转发会移除 Proxy-Authorization，保留目标服务器的 Authorization。这不代表代理身份验证：访问仍是无认证的。验证和签名密钥备份参见[发布说明](docs/RELEASING.zh-CN.md)。
 
 ## 报告安全漏洞
 

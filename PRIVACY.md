@@ -2,7 +2,7 @@
 
 English | [简体中文](PRIVACY.zh-CN.md)
 
-Android Proxy Server provides only the local HTTP and SOCKS5 proxy services explicitly enabled by the user.
+Bovf Proxy provides only the local HTTP and SOCKS5 proxy services explicitly enabled by the user. Modified for the bovf fork to document its identity and existing background-operation permissions.
 
 ## Data Not Collected
 
@@ -22,6 +22,8 @@ When a proxy is enabled, the app forwards client requests to their requested des
 - `ACCESS_NETWORK_STATE`: display available local network addresses
 - `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_SPECIAL_USE`: keep a user-enabled proxy service running
 - `POST_NOTIFICATIONS`: display the foreground-service notification
+- `WAKE_LOCK`: hold a partial wake lock while serving proxy connections
+- `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`: let the user request a system battery-optimization exemption
 
 ## Security Boundary
 

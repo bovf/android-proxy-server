@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Modified for the bovf fork: independent display and notification names. -->
 <resources>
-    <string name="app_name">Proxy Server</string>
+    <string name="app_name">Bovf Proxy</string>
     <string name="notification_channel_name">Proxy service</string>
-    <string name="notification_title">Proxy Server is running</string>
+    <string name="notification_title">Bovf Proxy is running</string>
 </resources>

@@ -2,10 +2,12 @@
 
 These instructions apply to the entire `android-proxy-server` repository. They supplement higher-level agent instructions. When instructions conflict, follow the instruction with the narrower scope unless it violates a higher-priority safety rule.
 
+Modified for the bovf fork: independent app identity and single-push release gates.
+
 ## Project Contract
 
 - The default branch is `master`.
-- This app is an independent Android HTTP and SOCKS5 proxy server.
+- Bovf Proxy is an independent Android HTTP and SOCKS5 proxy server (`io.github.bovf.proxy`).
 - HTTP uses port `8080` by default.
 - SOCKS5 uses port `1080` by default.
 - Both protocols are unauthenticated. Do not add authentication, accounts, analytics, advertising, telemetry, crash reporting, remote configuration, or tracking without an explicit user request.
@@ -17,7 +19,7 @@ These instructions apply to the entire `android-proxy-server` repository. They s
 
 - Do not run Gradle builds, Android builds, unit tests, emulator tests, or install build dependencies locally unless the user explicitly asks for a local build or local test.
 - Use `.github/workflows/android-apk.yml` for tests and APK builds.
-- A push to `master` runs CI and produces temporary Actions Artifacts.
+- A push to `master` runs CI without release-signing credentials and produces temporary Debug Actions Artifacts.
 - A documentation-only change does not require a version bump or release tag unless the user explicitly requests a release.
 - Do not describe a build as successful until the relevant GitHub Actions run has completed successfully.
 
@@ -57,14 +59,15 @@ Perform a release only when the user explicitly requests one.
 1. Update both `versionCode` and `versionName` in `app/build.gradle.kts`.
 2. Confirm documentation and release notes match the intended version and behavior.
 3. Run the privacy scan against the complete release diff and public assets.
-4. Commit and push the release changes to `master` so CI validates the exact release commit.
-5. Wait for the `master` GitHub Actions run to pass.
-6. Create an annotated tag named exactly `v${versionName}` on the validated commit.
-7. Push that tag to `origin`.
-8. Wait for GitHub Actions to run tests, build the APKs, verify the Release APK signature, and compare the APK certificate SHA-256 digest with the configured release keystore.
-9. Confirm the GitHub Release contains only the signed Release APK named `android-proxy-server-${versionName}-release.apk`.
-10. Keep the Debug APK and dependency report in GitHub Actions Artifacts only; do not attach them to the GitHub Release.
-11. Verify the final Release page, tag, target commit, and APK attachment through GitHub or the GitHub API before reporting completion.
+4. With user authorization, run local regressions, unit tests, and practical builds before publication.
+5. Commit the complete release changes and inspect every commit to be sent. Do not make a preliminary test push.
+6. Create an annotated tag named exactly `v${versionName}` on the final intended release commit.
+7. Confirm origin is the personal fork, both refs target that commit, and the remote branch has not moved. Perform ONE atomic push: `git push --atomic origin HEAD:refs/heads/master refs/tags/v${versionName}`. If protection prevents it, stop; do not fall back to partial or force pushes.
+8. Monitor the tag workflow: it must test the exact tagged commit before signing, compare the APK certificate to the private keystore and pinned public certificate digest, check identity/version/revision, and verify GitHub-native provenance before publishing.
+9. Confirm the GitHub Release contains only the signed `android-proxy-server-${versionName}-release.apk` and its `.sha256` checksum. Never overwrite existing releases, tags, or assets.
+10. Keep the Debug APK and dependency report in GitHub Actions Artifacts only. PR builds must not receive signing secrets or publish.
+11. Download the published APK and independently check its checksum, certificate, application ID, version, embedded revision, and provenance against the release commit. Provenance is not an independently reproduced build.
+12. If the final push's workflow fails, investigate and report it. Do not make another push, retag, or publish an unverified APK without separate authorization. See `docs/RELEASING.md`.
 
 ## Git Safety
 

@@ -8,7 +8,7 @@ Security fixes are applied to the latest version on the `master` branch. Older A
 
 ## Deployment Boundary
 
-Android Proxy Server is designed for a trusted local network. HTTP and SOCKS5 services do not implement authentication and listen on all local interfaces when enabled.
+Bovf Proxy (a modified Android Proxy Server fork) is designed for a trusted local network. HTTP and SOCKS5 services do not implement authentication and listen on all local interfaces when enabled.
 
 - Do not expose proxy ports directly to the internet.
 - Do not enable the server on untrusted public Wi-Fi or hotspot networks.
@@ -21,7 +21,9 @@ The app does not use `VpnService`. Outbound connections follow Android's default
 
 ## Release Integrity
 
-Release APKs are built by GitHub Actions. The workflow verifies the APK signature and compares the APK certificate SHA-256 digest with the configured release keystore before uploading artifacts. Signing keys and passwords are not stored in the repository.
+Modified for the bovf fork: tagged Release APKs are built only after tests pass on the exact tagged commit. Before publication, the workflow verifies the APK signature against the private keystore and pinned public certificate digest, checks the fork's application ID, version and source revision, and verifies GitHub-native provenance for the final APK. A SHA-256 checksum accompanies the APK. Provenance does not prove an independently reproduced build. Signing keys and passwords are not stored in the repository or provided to PR jobs.
+
+Plain-HTTP forwarding removes Proxy-Authorization while retaining origin Authorization. This is not proxy authentication: access remains unauthenticated. See [Release Instructions](docs/RELEASING.md) for verification and signing-key backup.
 
 ## Reporting A Vulnerability
 

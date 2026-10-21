@@ -2,7 +2,7 @@
 
 [English](PRIVACY.md) | 简体中文
 
-Android Proxy Server 只提供用户主动启用的本机 HTTP 和 SOCKS5 代理服务。
+Bovf Proxy 只提供用户主动启用的本机 HTTP 和 SOCKS5 代理服务。已为 bovf 分支修改，说明独立标识和已有的后台运行权限。
 
 ## 不收集的数据
 
@@ -22,6 +22,8 @@ HTTP/SOCKS5 开关和端口设置保存在 Android 私有应用存储中。流�
 - `ACCESS_NETWORK_STATE`：显示可用的本机网络地址
 - `FOREGROUND_SERVICE` 和 `FOREGROUND_SERVICE_SPECIAL_USE`：保持用户主动启用的代理服务运行
 - `POST_NOTIFICATIONS`：显示前台服务通知
+- `WAKE_LOCK`：提供代理连接服务时持有部分唤醒锁
+- `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`：让用户请求系统电池优化豁免
 
 ## 安全边界
 

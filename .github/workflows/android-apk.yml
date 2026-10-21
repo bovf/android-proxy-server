@@ -1,141 +1,210 @@
+# Modified for the bovf fork: exact-tag tests, isolated signing, pinned certificate, and provenance.
 name: Build Android APK
 
 on:
   push:
-    branches:
-      - master
-    tags:
-      - "v*"
+    branches: [master]
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash
+
 concurrency:
   group: android-apk-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 45
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout exact event commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Check source revision
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
 
       - name: Set up Java 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
           distribution: temurin
           java-version: "21"
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
 
       - name: Install Android platform
         run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
 
-      - name: Make Gradle wrapper executable
-        run: chmod +x gradlew
-
-      - name: Restore release keystore
-        if: github.event_name != 'pull_request'
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-        run: |
-          test -n "$ANDROID_KEYSTORE_BASE64"
-          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
-      - name: Run tests and build APKs
-        env:
-          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: ./gradlew :proxycore:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease --stacktrace
-
-      - name: Verify release APK signature
-        if: github.event_name != 'pull_request'
-        env:
-          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-        run: |
-          apksigner="$ANDROID_HOME/build-tools/36.0.0/apksigner"
-          release_apk="$(find app/build/outputs/apk/release -name '*.apk' -print -quit)"
-          test -x "$apksigner"
-          test -n "$release_apk"
-          "$apksigner" verify --verbose --print-certs "$release_apk"
-          apk_sha="$("$apksigner" verify --print-certs "$release_apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')"
-          key_sha="$(keytool -list -v -keystore "$ANDROID_KEYSTORE_PATH" -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" | sed -n 's/.*SHA256: //p' | tr -d ':')"
-          test "${apk_sha,,}" = "${key_sha,,}"
+      # No signing secrets are referenced by this job, including for same-repository PRs.
+      - name: Run unit tests and build Debug APK
+        run: bash ./gradlew :proxycore:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug --stacktrace
 
       - name: Generate dependency report
         run: |
           mkdir -p app/build/reports
-          ./gradlew :app:dependencies --configuration debugRuntimeClasspath > app/build/reports/dependencies-debug-runtime.txt
+          bash ./gradlew :app:dependencies --configuration debugRuntimeClasspath > app/build/reports/dependencies-debug-runtime.txt
 
-      - name: Upload APKs and dependency report
-        uses: actions/upload-artifact@v4
+      - name: Upload Debug APK and dependency report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: android-proxy-server-apks
+          name: android-proxy-server-debug
           path: |
             app/build/outputs/apk/debug/*.apk
-            app/build/outputs/apk/release/*.apk
             app/build/reports/dependencies-debug-runtime.txt
           if-no-files-found: error
           retention-days: 14
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: write
-
+      id-token: write
+      attestations: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download APK artifact
-        uses: actions/download-artifact@v4
+      - name: Checkout exact tested commit and tags
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          name: android-proxy-server-apks
-          path: release-assets
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
 
-      - name: Validate release version
+      - name: Validate annotated tag and version
         id: version
+        shell: bash
         run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git cat-file -t "$GITHUB_REF")" = tag
+          test "$(git rev-parse "${GITHUB_REF}^{commit}")" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain)"
           version_name="$(sed -n 's/^[[:space:]]*versionName = "\([^"]*\)"/\1/p' app/build.gradle.kts)"
-          test -n "$version_name"
+          version_code="$(sed -n 's/^[[:space:]]*versionCode = \([0-9]*\)/\1/p' app/build.gradle.kts)"
+          [[ "$version_name" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$version_code" =~ ^[1-9][0-9]*$ ]]
           test "v$version_name" = "$GITHUB_REF_NAME"
-          echo "version_name=$version_name" >> "$GITHUB_OUTPUT"
+          test -f "docs/releases/$version_name.md"
+          echo "name=$version_name" >> "$GITHUB_OUTPUT"
+          echo "code=$version_code" >> "$GITHUB_OUTPUT"
 
-      - name: Prepare release APK
+      - name: Set up Java 21
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+
+      - name: Install Android platform
+        run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Set up Gradle without signing caches
+        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+        with:
+          cache-disabled: true
+
+      - name: Restore release keystore privately
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          umask 077
+          test -n "$ANDROID_KEYSTORE_BASE64"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+
+      - name: Build signed Release APK
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          test -n "$ANDROID_KEYSTORE_PASSWORD"
+          test -n "$ANDROID_KEY_ALIAS"
+          test -n "$ANDROID_KEY_PASSWORD"
+          bash ./gradlew :app:assembleRelease --no-configuration-cache --no-build-cache --stacktrace
+
+      - name: Verify certificate, identity, version, and embedded revision
         id: asset
         env:
-          VERSION_NAME: ${{ steps.version.outputs.version_name }}
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          VERSION_NAME: ${{ steps.version.outputs.name }}
+          VERSION_CODE: ${{ steps.version.outputs.code }}
         run: |
-          source_apk="$(find release-assets -name '*release*.apk' -print -quit)"
-          test -n "$source_apk"
-          release_apk="android-proxy-server-$VERSION_NAME-release.apk"
-          cp "$source_apk" "$release_apk"
-          echo "path=$release_apk" >> "$GITHUB_OUTPUT"
+          tools="$ANDROID_HOME/build-tools/36.0.0"
+          apk=app/build/outputs/apk/release/app-release.apk
+          "$tools/apksigner" verify --verbose --print-certs "$apk" > "$RUNNER_TEMP/apk-signature.txt"
+          cat "$RUNNER_TEMP/apk-signature.txt"
+          test "$(grep -c '^Signer #[0-9]* certificate SHA-256 digest:' "$RUNNER_TEMP/apk-signature.txt")" = 1
+          apk_sha="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/apk-signature.txt")"
+          keytool -exportcert -keystore "$ANDROID_KEYSTORE_PATH" \
+            -storepass:env ANDROID_KEYSTORE_PASSWORD -alias "$ANDROID_KEY_ALIAS" > "$RUNNER_TEMP/signing-cert.der"
+          key_sha="$(sha256sum "$RUNNER_TEMP/signing-cert.der" | cut -d ' ' -f 1)"
+          expected_sha="$(tr -d '[:space:]' < .github/release-certificate.sha256)"
+          [[ "$expected_sha" =~ ^[0-9a-f]{64}$ ]]
+          test "$apk_sha" = "$expected_sha"
+          test "$key_sha" = "$expected_sha"
+          "$tools/aapt" dump badging "$apk" > "$RUNNER_TEMP/apk-badging.txt"
+          grep -F "package: name='io.github.bovf.proxy' versionCode='$VERSION_CODE' versionName='$VERSION_NAME'" "$RUNNER_TEMP/apk-badging.txt"
+          "$tools/aapt" dump xmltree "$apk" AndroidManifest.xml > "$RUNNER_TEMP/apk-manifest.txt"
+          grep -F 'io.github.bovf.proxy.SOURCE_REVISION' "$RUNNER_TEMP/apk-manifest.txt"
+          grep -F "\"$GITHUB_SHA\"" "$RUNNER_TEMP/apk-manifest.txt"
+          unzip -p "$apk" assets/LICENSE | cmp LICENSE
+          unzip -p "$apk" assets/NOTICE | cmp NOTICE
+          mkdir -p dist
+          name="android-proxy-server-$VERSION_NAME-release.apk"
+          cp "$apk" "dist/$name"
+          (cd dist && sha256sum "$name" > "$name.sha256")
+          echo "path=dist/$name" >> "$GITHUB_OUTPUT"
 
-      - name: Publish GitHub Release
+      - name: Remove signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.keystore" "$RUNNER_TEMP/signing-cert.der"
+
+      - name: Attest final signed APK
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-path: ${{ steps.asset.outputs.path }}
+
+      - name: Verify GitHub provenance before publication
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_APK: ${{ steps.asset.outputs.path }}
         run: |
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" "$RELEASE_APK" --clobber
-          else
-            gh release create "$GITHUB_REF_NAME" "$RELEASE_APK" \
-              --verify-tag \
-              --title "Android Proxy Server $GITHUB_REF_NAME" \
-              --generate-notes
-          fi
+          for attempt in 1 2 3 4 5; do
+            echo "Provenance verification attempt $attempt/5"
+            if gh attestation verify "$RELEASE_APK" --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/android-apk.yml" \
+              --source-ref "$GITHUB_REF" --source-digest "$GITHUB_SHA" --deny-self-hosted-runners; then
+              exit 0
+            fi
+            sleep 10
+          done
+          exit 1
+
+      - name: Publish new GitHub Release without replacing assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_APK: ${{ steps.asset.outputs.path }}
+          VERSION_NAME: ${{ steps.version.outputs.name }}
+        run: |
+          (cd dist && sha256sum --check "$(basename "$RELEASE_APK").sha256")
+          gh release create "$GITHUB_REF_NAME" "$RELEASE_APK" "$RELEASE_APK.sha256" \
+            --repo "$GITHUB_REPOSITORY" --verify-tag --target "$GITHUB_SHA" \
+            --title "Bovf Proxy $GITHUB_REF_NAME" --notes-file "docs/releases/$VERSION_NAME.md"

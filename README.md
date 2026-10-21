@@ -1,12 +1,14 @@
-# Android Proxy Server
+# Bovf Proxy
 
 English | [简体中文](README.zh-CN.md)
 
-An independent, minimal, open-source, and ad-free HTTP/SOCKS5 proxy server for Android.
+A personal fork of [Android Proxy Server](https://github.com/hect0x7/android-proxy-server): a minimal, open-source, ad-free HTTP/SOCKS5 proxy for Android. Modified by bovf for credential stripping, response backpressure, independent identity, and verified signed releases.
+
+Application ID: `io.github.bovf.proxy` (installs alongside upstream; settings are separate). Kotlin namespaces and upstream attribution are retained.
 
 <img src="art/app-icon.png" width="160" alt="Android Proxy Server icon">
 
-## Screenshot
+## Screenshot (upstream appearance; the fork is titled Bovf Proxy)
 
 | App |
 |:---:|
@@ -15,7 +17,7 @@ An independent, minimal, open-source, and ad-free HTTP/SOCKS5 proxy server for A
 ## Features
 
 - HTTP proxy on port `8080` by default
-- HTTPS tunneling through `CONNECT`
+- HTTPS and SSH TCP tunneling through `CONNECT`
 - SOCKS5 TCP `CONNECT` on port `1080` by default
 - Independent HTTP and SOCKS5 switches and configurable ports
 - Listens on local network interfaces for LAN clients
@@ -37,6 +39,8 @@ Client device        Home router          Android phone             Internet
                                                1080 SOCKS5
 ```
 
+For an existing unauthenticated HTTP proxy helper, edit the HTTP port in the app to **3128** and point the helper at the phone's displayed LAN address. Leave username/password empty. The default remains `8080`; no shell or Nix configuration changes are needed.
+
 See the illustrated [Getting Started Guide](docs/GETTING_STARTED.md) for protocol selection, setup examples, and troubleshooting.
 
 ## Privacy And Security
@@ -57,19 +61,22 @@ While either proxy listener is running, the foreground service holds a partial w
 
 ## Build And Release
 
-Pushing to `master` runs tests and uploads Debug/Release APKs as temporary GitHub Actions artifacts. Pushing a `v*` tag that exactly matches `versionName` creates or updates a GitHub Release and attaches the signed Release APK.
+`master` and PR CI run unit tests and build a temporary Debug APK without signing secrets. Release preparation uses local validation, then **one atomic push** of the completed default branch and annotated version tag; there is no preliminary test push.
 
-Release builds use a fixed signing certificate stored in repository Actions Secrets. Before publication, the workflow verifies the APK signature and confirms that its certificate matches the configured release keystore.
-
-```text
-git tag -a v1.1.1 -m "Android Proxy Server v1.1.1"
-git push origin v1.1.1
+```sh
+# After validation and committing all release changes:
+git tag -a v1.1.2 -m "Bovf Proxy v1.1.2"
+git push --atomic origin HEAD:refs/heads/master refs/tags/v1.1.2
 ```
 
-Local build command:
+The tag workflow tests the exact tagged commit, signs with the fork's dedicated key, verifies its pinned certificate, application ID, version and embedded source revision, then attests the final APK and verifies its GitHub provenance before publication. The release contains the signed APK and a SHA-256 checksum; existing assets are never overwritten. Provenance identifies the workflow/source, not an independently reproduced build.
 
-```text
-./gradlew test :app:assembleDebug :app:assembleRelease
+See [Release Instructions](docs/RELEASING.md) for signing-key backup, secure secret configuration and download verification, and [1.1.2 release notes](docs/releases/1.1.2.md).
+
+Local tests and builds (Release is unsigned without signing environment variables):
+
+```sh
+bash ./gradlew :proxycore:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease
 ```
 
 The project contains two modules:
@@ -84,6 +91,8 @@ The proxy core does not depend on Android `VpnService`.
 - SOCKS5 supports unauthenticated TCP `CONNECT` only
 - SOCKS5 `UDP ASSOCIATE` and `BIND` are not supported
 - HTTP and SOCKS5 username/password authentication is not supported
+- Physical-phone, screen-off/Doze, hotspot and concurrent-VPN behavior require device testing; local socket tests do not establish those guarantees
+- Listener startup checks confirm local acceptance, not internet/VPN reachability
 
 ## License
 

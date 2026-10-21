@@ -1,3 +1,4 @@
+// Modified for the bovf fork: use the fork-specific app title.
 package com.hect0x7.proxy
 
 import androidx.compose.foundation.background
@@ -37,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -217,7 +219,7 @@ private fun TopBar(running: Boolean) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = "Every Proxy",
+            text = stringResource(R.string.app_name),
             color = Color.White,
             fontSize = 20.sp,
             fontWeight = FontWeight.SemiBold,

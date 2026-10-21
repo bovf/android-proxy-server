@@ -1,3 +1,4 @@
+// Modified for the bovf fork: independent identity, version, revision, and bundled license notices.
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -14,16 +15,28 @@ val releaseSigningAvailable =
         )
         .all { !providers.environmentVariable(it).orNull.isNullOrBlank() }
 
+val sourceRevision = providers.exec { commandLine("git", "rev-parse", "HEAD") }
+    .standardOutput.asText.get().trim()
+require(sourceRevision.matches(Regex("[0-9a-f]{40}"))) { "Invalid source revision" }
+
+val licenseAssetsDirectory = layout.buildDirectory.dir("generated/licenseAssets")
+val licenseAssets = tasks.register<Sync>("prepareLicenseAssets") {
+  from(rootProject.file("LICENSE"), rootProject.file("NOTICE"))
+  into(licenseAssetsDirectory)
+}
+tasks.named("preBuild") { dependsOn(licenseAssets) }
+
 android {
   namespace = "com.hect0x7.proxy"
   compileSdk = libs.versions.compileSdk.get().toInt()
 
   defaultConfig {
-    applicationId = "com.hect0x7.proxy"
+    applicationId = "io.github.bovf.proxy"
     minSdk = libs.versions.minSdk.get().toInt()
     targetSdk = libs.versions.targetSdk.get().toInt()
-    versionCode = 3
-    versionName = "1.1.1"
+    versionCode = 4
+    versionName = "1.1.2"
+    manifestPlaceholders["sourceRevision"] = sourceRevision
   }
 
   signingConfigs {
@@ -52,6 +65,7 @@ android {
   }
 
   buildFeatures { compose = true }
+  sourceSets.getByName("main").assets.directories.add(licenseAssetsDirectory.get().asFile.path)
 
   packaging {
     resources.excludes += setOf(

@@ -2,7 +2,7 @@
 
 English | [简体中文](GETTING_STARTED.zh-CN.md)
 
-This guide explains the app without assuming prior proxy knowledge.
+This guide explains Bovf Proxy without assuming prior proxy knowledge. Modified for the bovf fork with its independent identity and optional port-3128 setup.
 
 <img src="images/lan-proxy-topology.png" width="900" alt="LAN clients connect through a router to the Android proxy server and then to the internet">
 
@@ -32,7 +32,7 @@ Do not configure the HTTP port as SOCKS5 or the SOCKS5 port as HTTP. Neither ser
 ## Setup
 
 1. Connect the Android phone and client device to the same trusted Wi-Fi or LAN.
-2. Open Android Proxy Server and note the displayed LAN address, for example `192.168.1.2`.
+2. Open Bovf Proxy and note the displayed LAN address, for example `192.168.1.2`.
 3. Enable HTTP, SOCKS5, or both.
 4. Enter the phone address and matching port in the client application.
 5. Keep the Android foreground-service notification active while using the proxy.
@@ -50,6 +50,12 @@ Authentication: none
 ```
 
 Replace `192.168.1.2` with the address shown by the app.
+
+## Existing HTTP Helper On Port 3128
+
+Tap the HTTP row's edit icon, set the port to `3128`, confirm, and enable HTTP. Set the helper's proxy host to the phone's displayed LAN address and port to `3128`, with authentication disabled. Port `8080` remains the app default; SOCKS5 remains `1080`. No shell aliases or Nix configuration need changing.
+
+Install the fork's signed Release APK from its GitHub Release page. Its application ID is `io.github.bovf.proxy`, so it can coexist with upstream; configure its ports separately and avoid listener conflicts. In **Background Operation**, tap **Allow** if needed and review the phone vendor's background restrictions. The listener check is local only; screen-off, hotspot and concurrent-VPN operation still need testing on your phone.
 
 ## Command-Line Test
 
